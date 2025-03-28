@@ -34,4 +34,4 @@ npm run dev
 - Newsletter subscription form
 - Modern typography with Inter font
 - Optimized images with Next.js Image component
-- SEO optimized with metadata 
+- SEO optimized with metadata # personal-website
