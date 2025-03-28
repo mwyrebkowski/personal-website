@@ -3,49 +3,52 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MarkdownPostEditor from '@/app/components/MarkdownPostEditor';
+import { DefinitionData } from '@/app/components/SidePanelDefinition';
 
 // Example function to generate initial MDX content with frontmatter
-const generateInitialContent = (metadata: { title: string; date: string; lang: 'en' | 'pl', published: boolean }) => {
+const generateInitialContent = (metadata: { title: string; date: string; lang: 'en' | 'pl'; published: boolean; definitions: DefinitionData[] }) => {
     return `---
 title: "${metadata.title.replace(/"/g, '\\"')}"
 date: "${metadata.date}"
 lang: "${metadata.lang}"
 published: ${metadata.published}
+definitions: ${JSON.stringify(metadata.definitions, null, 2)}
 ---
 
 Write your blog post content here using Markdown and the <Term> component.
 
 **Example:**
 
-This is a <Term id="example-term" definition="This is the definition shown in the side panel.">sample term</Term>. Remember to give each term a unique \`id\`.
+This is a \`<Term id="example-term" definition="Your definition text here." source="Optional source">sample term</Term>\`. Remember to give each term a unique \`id\`.
 `;
 };
 
 export default function NewPostPage() {
     const router = useRouter();
     const [title, setTitle] = useState('New Post');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [lang, setLang] = useState<'en' | 'pl'>('en');
     const [published, setPublished] = useState(false);
     const [mdxContent, setMdxContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    const [isPublishing, setIsPublishing] = useState(false);
+    const [isPublishing, setIsLoading] = useState(false); // Corrected typo
     const [error, setError] = useState<string | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [definitions, setDefinitions] = useState<DefinitionData[]>([]);
 
     // Generate slug from title (basic example)
     const generateSlug = (titleStr: string) => {
-       return titleStr
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s-]/g, '') // Remove non-word chars
-        .replace(/[\s_-]+/g, '-') // Replace space/underscore with single dash
-        .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
-    }
+        return titleStr
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+    };
 
     // Set initial content for a new post
     useEffect(() => {
-        const initialMeta = { title: 'New Post', date, lang, published };
+        const initialMeta = { title: 'New Post', date, lang, published, definitions: [] };
         setMdxContent(generateInitialContent(initialMeta));
     }, [date, lang, published]);
 
@@ -53,40 +56,43 @@ export default function NewPostPage() {
     useEffect(() => {
         // Only update the frontmatter part
         const contentBody = mdxContent.split('---').slice(2).join('---').trim();
-        const initialBody = generateInitialContent({title:'', date:'', lang:'en', published: false}).split('---').slice(2).join('---').trim();
+        const initialBody = generateInitialContent({ title: '', date: '', lang: 'en', published: false, definitions: [] }).split('---').slice(2).join('---').trim();
 
         const newFullMdx = `---
 title: "${title.replace(/"/g, '\\"')}"
 date: "${date}"
 lang: "${lang}"
 published: ${published}
+definitions: ${JSON.stringify(definitions, null, 2)}
 ---
 
-${contentBody || initialBody}`; // Re-add body
+${contentBody || initialBody}`;
         setMdxContent(newFullMdx);
-    }, [title, date, lang, published, mdxContent]);
+    }, [title, date, lang, published, mdxContent, definitions]);
 
-    const handleSave = async (newPublishedState: boolean | null = null) => {
+    const handleSave = async (newPublishedState: boolean | null = null, updatedDefinitions?: DefinitionData[]) => {
         setIsSaving(true);
         setSaveError(null);
-        
+
         try {
             // Determine the published state to use
             const effectivePublishState = newPublishedState !== null ? newPublishedState : published;
-            
+
             // Generate the slug from title
             const postSlug = generateSlug(title);
-            
+
             // Construct MDX content with updated frontmatter
+            const definitionsToSave = updatedDefinitions || definitions;
             const fullMdxContent = `---
 title: "${title.replace(/"/g, '\\"')}"
 date: "${date}"
 lang: "${lang}"
 published: ${effectivePublishState}
+definitions: ${JSON.stringify(definitionsToSave, null, 2)}
 ---
 
 ${mdxContent}`;
-            
+
             // Call the API to create the post
             const response = await fetch('/api/posts', {
                 method: 'POST',
@@ -99,14 +105,14 @@ ${mdxContent}`;
                     mdx: fullMdxContent,
                 }),
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Failed to create post: ${response.statusText}`);
             }
-            
+
             // Redirect to the edit page after successful creation
             router.push(`/admin/edit/${postSlug}`);
-            
+
         } catch (error: any) {
             console.error('Error creating post:', error);
             setSaveError(`Failed to create post: ${error.message}`);
@@ -118,6 +124,7 @@ ${mdxContent}`;
     const handlePublish = useCallback(() => {
         handleSave(true);
     }, [handleSave]);
+
 
     return (
         <div className="max-w-5xl mx-auto py-10 px-4">
@@ -168,19 +175,19 @@ ${mdxContent}`;
                 <span className="mr-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                     Status:
                 </span>
-                <span className={`px-2 py-1 text-xs rounded-full ${published 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' 
+                <span className={`px-2 py-1 text-xs rounded-full ${published
+                    ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
                     : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'}`}
                 >
                     {published ? 'Will publish immediately' : 'Will save as draft'}
                 </span>
-                
+
                 <div className="ml-auto space-x-2">
                     <button
                         onClick={() => setPublished(!published)}
-                        className={`px-3 py-1 ${published 
-                            ? 'bg-yellow-500 hover:bg-yellow-600' 
-                            : 'bg-green-600 hover:bg-green-700'} 
+                        className={`px-3 py-1 ${published
+                            ? 'bg-yellow-500 hover:bg-yellow-600'
+                            : 'bg-green-600 hover:bg-green-700'}
                             text-white rounded focus:outline-none focus:ring-2 transition-colors disabled:opacity-50`}
                         disabled={isSaving}
                     >
@@ -190,19 +197,20 @@ ${mdxContent}`;
             </div>
 
             <div className='mb-4 p-3 bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 rounded text-sm text-blue-800 dark:text-slate-300'>
-                Use Markdown for formatting. To add a side panel definition, use the `&lt;Term&gt;` component like this:
+                Use Markdown for formatting. To add a side panel definition, use the <code>\`<Term>\`</code> component like this:
                 <code className='block bg-blue-100 dark:bg-slate-700 p-2 rounded mt-1 text-xs'>
-                    &lt;Term id="unique-id" definition="Your definition text here." source="Optional source"&gt;Highlighted Term&lt;/Term&gt;
+                    <Term id="unique-id" definition="Your definition text here." source="Optional source">Highlighted Term</Term>
                 </code>
-                Ensure each `id` is unique within the post.
+                Ensure each <code>id</code> is unique within the post.
             </div>
 
             <MarkdownPostEditor
                 initialValue={mdxContent}
                 onChange={(value) => setMdxContent(value)}
-                onSave={() => handleSave(null)}
+                onSave={handleSave}
                 height={700}
                 readOnly={isSaving}
+                initialDefinitions={definitions}
             />
 
             <div className="mt-6 flex justify-between">
@@ -234,4 +242,4 @@ ${mdxContent}`;
             </div>
         </div>
     );
-} 
+}

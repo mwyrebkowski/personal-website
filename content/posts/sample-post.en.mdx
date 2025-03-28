@@ -1,29 +1,19 @@
 ---
-title: "Sample Published Post"
-date: "2024-05-01"
+title: "Sample Post with Marginalia"
+date: "2025-03-28"
 lang: "en"
 published: true
+definitions: [
+  {
+    "id": "marginalia-example",
+    "term": "Marginalia",
+    "definition": "Notes, commentary, or references written in the margin of a text.",
+    "source": "Wikipedia"
+  }
+]
 ---
+This is a sample blog post demonstrating the use of marginalia.
 
-# Sample Published Post
+Here is some text that includes a term with a definition. You can hover over or click the term <Term targetId="marginalia-example">marginalia</Term> to see its definition, which should appear in the side panel.
 
-This is a sample published post that demonstrates the functionality of our blog platform.
-
-## Introduction
-
-In this post, I'll explain how the publishing system works.
-
-## How It Works
-
-Our blog posts are written in MDX (Markdown with JSX) which allows us to use React components inside markdown.
-
-This is a Term component: <Term id="term-component" definition="A React component that displays a term with a definition in the side panel.">Term Component</Term>
-
-## Publishing System
-
-Posts with `published: true` in the frontmatter will appear on the public blog.
-Posts with `published: false` will only appear in the admin dashboard.
-
-## Conclusion
-
-This post should appear on both the admin dashboard and the public blog page because it has `published: true` in its frontmatter metadata.
+The system uses the `<Term>` component, referencing an `id` defined in the post's frontmatter under `definitions`. This allows for structured definitions and commentary alongside the main content. <Term targetId="test">test</Term>

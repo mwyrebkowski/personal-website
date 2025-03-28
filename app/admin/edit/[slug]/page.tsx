@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import MarkdownPostEditor from '@/app/components/MarkdownPostEditor';
+import { DefinitionData } from '@/app/components/SidePanelDefinition';
 
 interface EditPostPageParams {
   slug: string;
@@ -25,6 +26,7 @@ export default function EditPostPage() {
     const [isPublishing, setIsPublishing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+    const [definitions, setDefinitions] = useState<DefinitionData[]>([]);
 
     // Get post data on page load
     useEffect(() => {
@@ -49,6 +51,7 @@ export default function EditPostPage() {
                 setPostLang(metadata.lang || 'en');
                 setPublished(metadata.published || false);
                 setMdxContent(mdxContent);
+                setDefinitions(metadata.definitions || []);
                 setError(null);
             } catch (err: any) {
                 console.error('Error loading post:', err);
@@ -64,7 +67,7 @@ export default function EditPostPage() {
     }, [params.slug, postLang]);
 
     // Save post
-    const handleSave = async (newPublishedState: boolean | null = null) => {
+    const handleSave = async (newPublishedState: boolean | null = null, updatedDefinitions?: DefinitionData[]) => {
         setIsSaving(true);
         if (newPublishedState !== null) {
             setIsPublishing(true);
@@ -74,16 +77,18 @@ export default function EditPostPage() {
         
         // Determine if this is a publish operation or just a save
         const saveAsPublished = newPublishedState !== null ? newPublishedState : published;
+        const definitionsToSave = updatedDefinitions || definitions;
         
         // Construct MDX content with updated frontmatter
-        const fullMdx = `---
+        const frontmatter = `---
 title: "${title.replace(/"/g, '\\"')}"
 date: "${date}"
 lang: "${postLang}"
 published: ${saveAsPublished}
+definitions: ${JSON.stringify(definitionsToSave, null, 2)}
 ---
-
-${mdxContent.split('---').slice(2).join('---').trim()}`; // Rebuild content after frontmatter
+`;
+        const fullMdx = frontmatter + mdxContent.split('---').slice(2).join('---').trim();
 
         try {
             const response = await fetch(`/api/posts/${params.slug}`, {
@@ -92,7 +97,7 @@ ${mdxContent.split('---').slice(2).join('---').trim()}`; // Rebuild content afte
                 body: JSON.stringify({
                     slug: params.slug,
                     lang: postLang,
-                    mdxContent: fullMdx
+                    mdxContent: fullMdx,
                 }),
             });
             
@@ -220,7 +225,7 @@ ${mdxContent.split('---').slice(2).join('---').trim()}`; // Rebuild content afte
                     )}
                     
                     <button
-                        onClick={() => handleSave()}
+                        onClick={() => handleSave(null)}
                         className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
                         disabled={isSaving}
                     >
@@ -240,9 +245,13 @@ ${mdxContent.split('---').slice(2).join('---').trim()}`; // Rebuild content afte
             <MarkdownPostEditor
                 initialValue={mdxContent}
                 onChange={(value) => setMdxContent(value)}
-                onSave={() => handleSave(null)}
+                onSave={(value) => {
+                    setMdxContent(value);
+                    handleSave(null);
+                }}
                 height={700}
                 readOnly={isSaving}
+                initialDefinitions={definitions}
             />
         </div>
     );

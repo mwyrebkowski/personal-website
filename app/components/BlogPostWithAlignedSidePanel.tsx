@@ -1,62 +1,63 @@
-'use client';
+'use client'; // Needs client-side hooks and DOM interaction
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import SidePanelDefinition, { DefinitionData } from './SidePanelDefinition';
-// Using lodash for throttle/debounce - ensure it's installed
 import { throttle, debounce } from 'lodash';
-import ExpandableSection from './ExpandableSection'; // Used for mobile view
+
+// Import necessary component types and components
+import SidePanelDefinition, { DefinitionData } from './SidePanelDefinition'; // Used for rendering notes
+// Removed unused MarginaliaNote import
 
 // Helper function to find the closest ancestor term element
 const findClosestTermMarker = (element: HTMLElement | null): HTMLElement | null => {
     while (element) {
-        // Check if the element itself matches the criteria
-        if (element.matches && element.matches('span[data-def-id]')) {
+        if (element.matches && element.matches('span[data-term-id]')) { // Use data-term-id
             return element;
         }
-        // Move up to the parent element
         element = element.parentElement;
     }
-    // No matching ancestor found
     return null;
 };
 
-// Props interface for the component
-interface BlogPostWithAlignedSidePanelProps {
+// --- Timing & Animation Configuration ---
+const EVENT_THROTTLE_MS = 60;
+const POSITION_DEBOUNCE_MS = 60;
+const OBSERVER_DEBOUNCE_MS = 80;
+const SCROLL_INTO_VIEW_OFFSET = 100;
+const STAGGER_DELAY_MS = 40;
+// --- End Configuration ---
+
+// Updated Props interface to match BlogPostClientView
+export interface BlogPostWithAlignedSidePanelProps {
     title: string;
     date: string;
     lang: 'en' | 'pl';
-    mainContent: React.ReactNode; // The main blog content
-    definitions: DefinitionData[]; // Array of definitions from frontmatter
+    mainContent: React.ReactNode;
+    definitions: DefinitionData[]; // Changed from marginaliaNotes
+    activeDefinitionId: string | null; // Changed from activeMarginaliaId
+    onDefinitionActivate: (id: string | null) => void; // Changed from onMarginaliaActivate
 }
-
-// --- Timing & Animation Configuration ---
-const EVENT_THROTTLE_MS = 60;       // Throttle delay for scroll/resize events (ms)
-const POSITION_DEBOUNCE_MS = 60;    // Debounce delay for observer/toggle triggers (ms)
-const OBSERVER_DEBOUNCE_MS = 80;    // Separate debounce for ResizeObserver (slightly longer)
-const SCROLL_INTO_VIEW_OFFSET = 100;// Pixel offset from top when scrolling definition into view
-const STAGGER_DELAY_MS = 40;        // Delay increment for staggered animation (ms)
-// --- End Configuration ---
 
 const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> = ({
     title,
     date,
     mainContent,
-    definitions, // Definitions passed from server (from frontmatter)
+    definitions, // Changed from marginaliaNotes
+    activeDefinitionId, // Changed from activeMarginaliaId
+    onDefinitionActivate, // Changed from onMarginaliaActivate
     lang,
 }) => {
     // Refs for DOM elements
     const mainContentRef = useRef<HTMLDivElement>(null);
-    const sidePanelRef = useRef<HTMLDivElement>(null); // Outer side panel container
-    const sidePanelInnerRef = useRef<HTMLDivElement>(null); // Inner relative container for positioning
+    const sidePanelRef = useRef<HTMLDivElement>(null);
+    const sidePanelInnerRef = useRef<HTMLDivElement>(null);
 
     // State variables
-    const [isClient, setIsClient] = useState(false); // Ensure execution only on client-side
-    const [sidePanelMinHeight, setSidePanelMinHeight] = useState<number | string>('auto'); // Dynamic height for side panel
-    const [activeDefinitionId, setActiveDefinitionId] = useState<string | null>(null); // Currently focused definition
+    const [isClient, setIsClient] = useState(false);
+    const [sidePanelMinHeight, setSidePanelMinHeight] = useState<number | string>('auto');
 
     // Refs for managing logic state
-    const resizeObserverRef = useRef<ResizeObserver | null>(null); // Holds the ResizeObserver instance
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
     const lastToggledIdRef = useRef<string | null>(null); // Tracks the most recently user-toggled definition ID for staggering
 
     // Set isClient flag on component mount
@@ -66,70 +67,59 @@ const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> 
 
     // --- Definition Positioning Logic ---
     const positionDefinitions = useCallback(() => {
-        // Guard clauses for client-side execution and ref availability
         if (!isClient || !mainContentRef.current || !sidePanelInnerRef.current || typeof window === 'undefined') {
             return;
         }
 
-        // Get necessary measurements
         const sidePanelInnerRect = sidePanelInnerRef.current.getBoundingClientRect();
         const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const sidePanelTopOffset = sidePanelInnerRect.top + scrollTop; // Absolute top of the positioning container
+        const sidePanelTopOffset = sidePanelInnerRect.top + scrollTop;
 
-        // Variables for layout calculation
-        let cumulativeOffset = 0; // Tracks the bottom edge of the last positioned definition
-        let maxRequiredHeight = 0; // Tracks the maximum height needed for the container
-        const definitionMarginBottom = 16; // Matches mb-4 class
+        let cumulativeOffset = 0;
+        let maxRequiredHeight = 0;
+        const definitionMarginBottom = 16; // Matches mb-4 class on SidePanelDefinition's inner div
 
-        // Staggering logic variables
-        let staggerIndex = 0; // Counter for applying incremental delay
-        // Start staggering immediately unless a specific item was just toggled
+        let staggerIndex = 0;
         let foundToggled = !lastToggledIdRef.current;
 
-        // Iterate through each definition to position it
-        definitions.forEach((defData) => {
-            // Find the marker span using data-def-id
-            const termElement = mainContentRef.current?.querySelector<HTMLElement>(`span[data-def-id="${defData.id}"]`);
-            const definitionElement = document.getElementById(`definition-${defData.id}`);
+        // Iterate through definitions
+        definitions.forEach((defData) => { // Changed from note to defData
+            // Find the marker span using data-term-id
+            const termElement = mainContentRef.current?.querySelector<HTMLElement>(`span[data-term-id="${defData.id}"]`); // Use defData.id
+            // Find the definition element using definition-${id} convention
+            const definitionElement = document.getElementById(`definition-${defData.id}`); // Use defData.id
 
-            // Position only if both term and definition elements exist
             if (termElement && definitionElement) {
                 const termRect = termElement.getBoundingClientRect();
-                const termTopAbsolute = termRect.top + scrollTop; // Absolute top of the term
-                let targetTop = termTopAbsolute - sidePanelTopOffset; // Ideal top relative to container
-                targetTop = Math.max(targetTop, cumulativeOffset); // Prevent overlap
+                const termTopAbsolute = termRect.top + scrollTop;
+                let targetTop = termTopAbsolute - sidePanelTopOffset;
+                targetTop = Math.max(targetTop, cumulativeOffset);
 
-                // Calculate stagger delay (only applied *after* the toggled element)
                 let delay = 0;
-                if (foundToggled && staggerIndex > 0) { // Don't delay the first item after toggle
+                if (foundToggled && staggerIndex > 0) {
                     delay = staggerIndex * STAGGER_DELAY_MS;
                 }
 
-                // Apply styles directly to the definition element
                 definitionElement.style.position = 'absolute';
-                definitionElement.style.transform = `translateY(${targetTop}px)`; // Use transform for performance
+                definitionElement.style.transform = `translateY(${targetTop}px)`;
                 definitionElement.style.left = '0';
                 definitionElement.style.right = '0';
-                definitionElement.style.visibility = 'visible'; // Make container visible
-                definitionElement.style.opacity = '1'; // Trigger fade-in
-                definitionElement.style.transitionDelay = `${delay}ms`; // Apply calculated stagger delay
+                definitionElement.style.visibility = 'visible';
+                definitionElement.style.opacity = '1';
+                definitionElement.style.transitionDelay = `${delay}ms`;
 
-                // Logic to track when to start staggering
                 if (foundToggled) {
-                    staggerIndex++; // Increment for the next element
+                    staggerIndex++;
                 }
-                // If this element *was* the last one toggled, start staggering from the *next* one
-                if (defData.id === lastToggledIdRef.current) {
+                if (defData.id === lastToggledIdRef.current) { // Use defData.id
                     foundToggled = true;
                 }
 
-                // Update layout tracking variables
-                const defHeight = definitionElement.offsetHeight; // Get height after styles applied
+                const defHeight = definitionElement.offsetHeight;
                 cumulativeOffset = targetTop + defHeight + definitionMarginBottom;
                 maxRequiredHeight = Math.max(maxRequiredHeight, cumulativeOffset);
 
             } else if (definitionElement) {
-                // If term is missing, hide the definition and reset styles
                 definitionElement.style.visibility = 'hidden';
                 definitionElement.style.opacity = '0';
                 definitionElement.style.transform = 'translateY(0px)';
@@ -137,71 +127,57 @@ const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> 
             }
         });
 
-        // Reset the tracked toggled ID after calculations for this cycle are done
         lastToggledIdRef.current = null;
 
-        // Set minimum height for the container to prevent positioned items from overflowing
         const finalMinHeight = maxRequiredHeight > 0 ? maxRequiredHeight - definitionMarginBottom : 'auto';
         setSidePanelMinHeight(finalMinHeight);
 
-    }, [definitions, isClient]); // Dependencies for the positioning function
+    }, [definitions, isClient]); // Dependencies updated to definitions
 
     // --- Throttled/Debounced Positioning Functions ---
-    // Throttle for frequent events (scroll/resize) - updates happen *during* the event
     const throttledPositionDefinitions = useCallback(
         throttle(positionDefinitions, EVENT_THROTTLE_MS, { leading: false, trailing: true }),
-        [positionDefinitions] // Ensure it uses the latest positionDefinitions callback
+        [positionDefinitions]
     );
-    // Debounce for less frequent events (observer/toggle) - updates happen *after* events settle
     const debouncedPositionDefinitions = useCallback(
         debounce(positionDefinitions, POSITION_DEBOUNCE_MS),
-        [positionDefinitions] // Ensure it uses the latest positionDefinitions callback
+        [positionDefinitions]
     );
-    // Separate debounce instance for ResizeObserver with potentially different timing
     const debouncedObserverCallback = useCallback(
         debounce(positionDefinitions, OBSERVER_DEBOUNCE_MS),
         [positionDefinitions]
     );
 
-
     // Effect to set up and clean up observers and event listeners
     useEffect(() => {
-        // Guard clauses
-        if (!isClient || definitions.length === 0 || !mainContentRef.current || !sidePanelInnerRef.current) {
+        if (!isClient || definitions.length === 0 || !mainContentRef.current || !sidePanelInnerRef.current) { // Use definitions.length
             return;
         }
 
-        // Initial positioning attempt shortly after mount
         const initialPositionTimer = setTimeout(positionDefinitions, 150);
 
-        // Setup ResizeObserver to trigger repositioning on content/panel size changes
         const observer = new ResizeObserver(() => {
-            debouncedObserverCallback(); // Use the dedicated observer debounce
+            debouncedObserverCallback();
         });
         observer.observe(mainContentRef.current);
         observer.observe(sidePanelInnerRef.current);
-        resizeObserverRef.current = observer; // Store for cleanup
+        resizeObserverRef.current = observer;
 
-        // Add window event listeners using the throttled function
         window.addEventListener('resize', throttledPositionDefinitions);
-        window.addEventListener('scroll', throttledPositionDefinitions, { passive: true }); // Passive for scroll performance
+        window.addEventListener('scroll', throttledPositionDefinitions, { passive: true });
 
-        // Cleanup function on unmount or dependency change
         return () => {
             clearTimeout(initialPositionTimer);
             if (resizeObserverRef.current) {
-                resizeObserverRef.current.disconnect(); // Clean up observer
+                resizeObserverRef.current.disconnect();
             }
-            // Remove event listeners
             window.removeEventListener('resize', throttledPositionDefinitions);
             window.removeEventListener('scroll', throttledPositionDefinitions);
-            // Cancel any pending throttled/debounced calls
             throttledPositionDefinitions.cancel();
             debouncedPositionDefinitions.cancel();
             debouncedObserverCallback.cancel();
         };
-        // Dependencies ensure effect reruns if necessary, includes positioning functions
-    }, [isClient, definitions.length, positionDefinitions, debouncedPositionDefinitions, throttledPositionDefinitions, debouncedObserverCallback]);
+    }, [isClient, definitions.length, positionDefinitions, debouncedPositionDefinitions, throttledPositionDefinitions, debouncedObserverCallback]); // Use definitions.length
 
     // --- Click Handling ---
 
@@ -209,53 +185,59 @@ const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> 
     const handleTermClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
         const termElement = findClosestTermMarker(event.target as HTMLElement);
         if (termElement) {
-            const termId = termElement.dataset.defId;
+            const termId = termElement.dataset.termId; // Use data-term-id
             if (termId) {
-                // Update active state & record the ID for staggering
-                setActiveDefinitionId(prevId => {
-                    const newId = prevId === termId ? null : termId; // Toggle behavior
-                    lastToggledIdRef.current = newId; // Record for staggering logic
-                    return newId;
-                });
+                const newId = activeDefinitionId === termId ? null : termId; // Toggle behavior, use activeDefinitionId
+                lastToggledIdRef.current = newId; // Record for staggering logic
+                onDefinitionActivate(newId); // Update state in parent component, use onDefinitionActivate
                 debouncedPositionDefinitions(); // Trigger repositioning calculation
 
                 // Scroll into view logic (only if opening a new definition)
-                if (termId !== activeDefinitionId) {
+                if (newId) { // Check if we are activating, not deactivating
                     const definitionElement = document.getElementById(`definition-${termId}`);
                     if (definitionElement && sidePanelRef.current) {
+                        // Check if the definition is already reasonably visible
                         const sidePanelRect = sidePanelRef.current.getBoundingClientRect();
                         const definitionRect = definitionElement.getBoundingClientRect();
-                        const currentScrollY = window.scrollY;
-                        const targetScrollY = currentScrollY + definitionRect.top - SCROLL_INTO_VIEW_OFFSET;
-                        const sidePanelVisibleTop = Math.max(SCROLL_INTO_VIEW_OFFSET, sidePanelRect.top);
-                        const sidePanelVisibleBottom = Math.min(window.innerHeight, sidePanelRect.bottom);
-                        const isFullyVisible = definitionRect.top >= sidePanelVisibleTop && definitionRect.bottom <= sidePanelVisibleBottom;
-                        if (!isFullyVisible) {
+                        const windowHeight = window.innerHeight;
+
+                        // Define visible area (consider sticky header offset if any)
+                        const visibleTop = SCROLL_INTO_VIEW_OFFSET; // Use the offset as the top boundary
+                        const visibleBottom = windowHeight - 20; // Small buffer at the bottom
+
+                        const isDefinitionTopVisible = definitionRect.top >= visibleTop;
+                        const isDefinitionBottomVisible = definitionRect.bottom <= visibleBottom;
+                        const isFullyVisible = isDefinitionTopVisible && isDefinitionBottomVisible;
+
+                        // Also check if it's within the side panel's vertical bounds on screen
+                        const isWithinSidePanelBounds = definitionRect.top >= sidePanelRect.top && definitionRect.bottom <= sidePanelRect.bottom;
+
+                        if (!isFullyVisible || !isWithinSidePanelBounds) {
+                            const currentScrollY = window.scrollY;
+                            // Calculate target scroll position to bring the top of the definition near the offset
+                            const targetScrollY = currentScrollY + definitionRect.top - SCROLL_INTO_VIEW_OFFSET;
                             window.scrollTo({ top: targetScrollY, behavior: 'smooth' });
                         }
                     }
                 }
             }
         }
-    }, [debouncedPositionDefinitions, activeDefinitionId]);
+    }, [debouncedPositionDefinitions, activeDefinitionId, onDefinitionActivate]); // Dependencies updated
 
     // Handler for clicks directly on the SidePanelDefinition toggles
     const handleDefinitionToggle = useCallback((toggledId: string) => {
-        // Update active state & record the ID for staggering
-        setActiveDefinitionId(prevId => {
-            const newId = prevId === toggledId ? null : toggledId; // Toggle behavior
-            lastToggledIdRef.current = newId; // Record for staggering logic
-            return newId;
-        });
+        const newId = activeDefinitionId === toggledId ? null : toggledId; // Toggle behavior, use activeDefinitionId
+        lastToggledIdRef.current = newId; // Record for staggering logic
+        onDefinitionActivate(newId); // Update state in parent component, use onDefinitionActivate
         debouncedPositionDefinitions(); // Trigger repositioning calculation
-    }, [debouncedPositionDefinitions]); // Dependency
+    }, [debouncedPositionDefinitions, activeDefinitionId, onDefinitionActivate]); // Dependencies updated
 
     // --- Render ---
     return (
         <div className="bg-slate-50 dark:bg-gray-950 text-slate-800 dark:text-slate-200 min-h-screen">
             <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
 
-                {/* Back Link & Header Section */}
+                {/* Back Link & Header Section (Unchanged) */}
                 <div className="max-w-3xl mx-auto lg:max-w-none mb-12 lg:mb-16">
                     <Link
                         href={`/${lang}/blog`}
@@ -279,38 +261,43 @@ const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> 
                 {/* Main Content & Side Panel Layout */}
                 <div className="flex flex-col lg:flex-row lg:gap-x-12 xl:gap-x-16">
 
-                    {/* Main Content Column */}
+                    {/* Main Content Column - Added ref and onClick */}
                     <div
                         className="lg:w-[60%] xl:w-3/5 order-1 lg:order-1 flex-shrink-0"
                         ref={mainContentRef}
-                        onClick={handleTermClick}
+                        onClick={handleTermClick} // Attach click handler here
                     >
                         <article className="prose prose-lg prose-slate max-w-none dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight dark:prose-headings:text-slate-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline prose-p:leading-relaxed prose-li:my-1">
                             {mainContent}
                         </article>
                     </div>
 
-                    {/* Side Panel Column (Large Screens Only) */}
-                    {definitions.length > 0 && (
+                    {/* Side Panel Column (Large Screens Only) - Modified Structure */}
+                    {definitions && definitions.length > 0 && ( // Use definitions
                         <aside
                             className="hidden lg:block lg:w-[40%] xl:w-2/5 order-2 lg:order-2 mt-16 lg:mt-0 flex-shrink-0"
-                            ref={sidePanelRef}
+                            ref={sidePanelRef} // Add ref to the aside
                         >
-                            <div className="sticky top-24">
+                            <div className="sticky top-24"> {/* Sticky container */}
                                 <h3 className="text-base font-semibold mb-5 border-b border-slate-200 dark:border-slate-700 pb-2 text-slate-700 dark:text-slate-300 tracking-wide">
                                     {lang === 'en' ? 'Definitions & Notes' : 'Definicje i Notatki'}
                                 </h3>
+                                {/* Relative container for positioning */}
                                 <div
                                     ref={sidePanelInnerRef}
                                     className="relative"
-                                    style={{ minHeight: sidePanelMinHeight }}
+                                    style={{ minHeight: sidePanelMinHeight }} // Apply dynamic min-height
                                 >
-                                    {definitions.map((def) => (
+                                    {/* Render SidePanelDefinition directly using definitions data */}
+                                    {definitions.map((defData) => ( // Iterate over definitions
                                         <SidePanelDefinition
-                                            key={def.id}
-                                            {...def}
-                                            forceOpen={def.id === activeDefinitionId}
-                                            onToggleClick={handleDefinitionToggle}
+                                            key={defData.id}
+                                            id={defData.id}
+                                            term={defData.term} // Use term from DefinitionData
+                                            definition={defData.definition} // Use definition from DefinitionData
+                                            source={defData.source}
+                                            forceOpen={defData.id === activeDefinitionId} // Use activeDefinitionId
+                                            onToggleClick={handleDefinitionToggle} // Pass toggle handler
                                         />
                                     ))}
                                 </div>
@@ -319,28 +306,7 @@ const BlogPostWithAlignedSidePanel: React.FC<BlogPostWithAlignedSidePanelProps> 
                     )}
                 </div>
 
-                {/* Definitions Section (Small Screens Only - Stacked) */}
-                {definitions.length > 0 && (
-                    <div className="block lg:hidden mt-16 pt-10 border-t border-slate-200 dark:border-slate-700">
-                        <h3 className="text-lg font-semibold mb-5 text-slate-800 dark:text-slate-100">
-                            {lang === 'en' ? 'Definitions & Notes' : 'Definicje i Notatki'}
-                        </h3>
-                        <div className="space-y-4">
-                            {definitions.map((def) => (
-                                <div key={`mobile-${def.id}`} className="shadow-sm rounded-md border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800 overflow-hidden">
-                                    <ExpandableSection title={def.term} defaultOpen={false} >
-                                        {def.definition}
-                                        {def.source && (
-                                            <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400">
-                                                Source: {def.source}
-                                            </div>
-                                        )}
-                                    </ExpandableSection>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Removed Small Screens Definitions Section */}
             </div>
         </div>
     );
