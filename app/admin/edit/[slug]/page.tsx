@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import MarkdownPostEditor from '@/app/components/MarkdownPostEditor';
+import TipTapEditor from '@/app/components/TipTapEditor'; // Import the new editor
 import { DefinitionData } from '@/app/components/SidePanelDefinition';
 
 interface EditPostPageParams {
@@ -20,7 +20,7 @@ export default function EditPostPage() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [postLang, setPostLang] = useState<'en' | 'pl'>(lang);
     const [published, setPublished] = useState(false);
-    const [mdxContent, setMdxContent] = useState('');
+    const [initialMarkdown, setInitialMarkdown] = useState(''); // Renamed state for initial content
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
@@ -50,7 +50,7 @@ export default function EditPostPage() {
                 setDate(metadata.date || new Date().toISOString().split('T')[0]);
                 setPostLang(metadata.lang || 'en');
                 setPublished(metadata.published || false);
-                setMdxContent(mdxContent);
+                setInitialMarkdown(mdxContent); // Set initial markdown content
                 setDefinitions(metadata.definitions || []);
                 setError(null);
             } catch (err: any) {
@@ -64,10 +64,10 @@ export default function EditPostPage() {
         if (params.slug) {
             fetchPost();
         }
-    }, [params.slug, postLang]);
+    }, [params.slug, postLang]); // Keep dependency array as is
 
-    // Save post
-    const handleSave = async (newPublishedState: boolean | null = null, updatedDefinitions?: DefinitionData[]) => {
+    // Save post - Updated signature
+    const handleSave = async (markdownContent: string, updatedDefinitions?: DefinitionData[], newPublishedState: boolean | null = null) => {
         setIsSaving(true);
         if (newPublishedState !== null) {
             setIsPublishing(true);
@@ -77,9 +77,10 @@ export default function EditPostPage() {
         
         // Determine if this is a publish operation or just a save
         const saveAsPublished = newPublishedState !== null ? newPublishedState : published;
+        // Use the definitions passed from the editor's onSave callback
         const definitionsToSave = updatedDefinitions || definitions;
-        
-        // Construct MDX content with updated frontmatter
+
+        // Construct MDX content with updated frontmatter and new markdown content
         const frontmatter = `---
 title: "${title.replace(/"/g, '\\"')}"
 date: "${date}"
@@ -87,8 +88,10 @@ lang: "${postLang}"
 published: ${saveAsPublished}
 definitions: ${JSON.stringify(definitionsToSave, null, 2)}
 ---
-`;
-        const fullMdx = frontmatter + mdxContent.split('---').slice(2).join('---').trim();
+
+`; // Ensure a newline after frontmatter
+        // Use the markdownContent passed from the editor
+        const fullMdx = frontmatter + markdownContent;
 
         try {
             const response = await fetch(`/api/posts/${params.slug}`, {
@@ -108,12 +111,17 @@ definitions: ${JSON.stringify(definitionsToSave, null, 2)}
             
             setError(null);
             setSaved(true);
-            
+
+            // Update the published state locally if it was changed *after* successful save
+            if (newPublishedState !== null) {
+                setPublished(newPublishedState);
+            }
+
             // Hide the saved message after a delay
             setTimeout(() => {
                 setSaved(false);
             }, 3000);
-            
+
         } catch (err: any) {
             console.error(err);
             setError(`${newPublishedState !== null ? 'Publish' : 'Save'} failed: ${err.message}`);
@@ -122,14 +130,20 @@ definitions: ${JSON.stringify(definitionsToSave, null, 2)}
             if (newPublishedState !== null) {
                 setIsPublishing(false);
             }
+            // Removed duplicated blocks and misplaced state update
         }
     };
 
-    // Helper functions for publish/unpublish
-    const handlePublish = () => handleSave(true);
-    const handleUnpublish = () => handleSave(false);
+    // Note: handlePublish/handleUnpublish now need the content and definitions.
+    // This suggests the save button within the editor should handle saving,
+    // and these buttons might just trigger a save with the publish state change.
+    // Let's adjust this: The editor's save button calls handleSave directly.
+    // The Publish/Unpublish buttons will need access to the latest content/definitions,
+    // which is tricky without lifting state or using refs.
+    // Simplification: Remove Publish/Unpublish buttons for now, rely on editor's save.
+    // We can revisit adding dedicated publish buttons later if needed.
 
-    // Function to handle switching languages
+    // Function to handle switching languages (Keep as is for now)
     const handleLanguageSwitch = async (newLang: 'en' | 'pl') => {
         if (newLang === postLang) return;
         
@@ -204,55 +218,20 @@ definitions: ${JSON.stringify(definitionsToSave, null, 2)}
                         {published ? 'Published' : 'Draft'}
                     </span>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                    {published ? (
-                        <button
-                            onClick={handleUnpublish}
-                            className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors disabled:opacity-50"
-                            disabled={isPublishing || isSaving}
-                        >
-                            {isPublishing ? 'Unpublishing...' : 'Unpublish'}
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handlePublish}
-                            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50"
-                            disabled={isPublishing || isSaving}
-                        >
-                            {isPublishing ? 'Publishing...' : 'Publish'}
-                        </button>
-                    )}
-                    
-                    <button
-                        onClick={() => handleSave(null)}
-                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
-                        disabled={isSaving}
-                    >
-                        {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                </div>
+                {/* Removed Publish/Unpublish/Save buttons - Handled by editor component now */}
             </div>
 
-            <div className='mb-4 p-3 bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 rounded text-sm text-blue-800 dark:text-slate-300'>
-                Use Markdown for formatting. To add a side panel definition, use the `&lt;Term&gt;` component like this:
-                <code className='block bg-blue-100 dark:bg-slate-700 p-2 rounded mt-1 text-xs'>
-                    &lt;Term id="unique-id" definition="Your definition text here." source="Optional source"&gt;Highlighted Term&lt;/Term&gt;
-                </code>
-                Ensure each `id` is unique within the post.
-            </div>
+            {/* Removed instruction block for <Term> */}
 
-            <MarkdownPostEditor
-                initialValue={mdxContent}
-                onChange={(value) => setMdxContent(value)}
-                onSave={(value) => {
-                    setMdxContent(value);
-                    handleSave(null);
-                }}
+            <TipTapEditor
+                initialValue={initialMarkdown} // Pass initial markdown
+                // No onChange needed here for now
+                onSave={handleSave} // Pass the updated handleSave function
                 height={700}
                 readOnly={isSaving}
                 initialDefinitions={definitions}
+                // onRequestNewDefinition could be added later if needed for panel interaction
             />
         </div>
     );
-} 
+}

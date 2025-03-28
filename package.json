@@ -25,6 +25,7 @@
     "remark-mdx": "^3.1.0",
     "remark-parse": "^11.0.0",
     "tailwindcss": "^3.4.1",
+    "tippy.js": "^6.3.7",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0"
   },
@@ -32,6 +33,7 @@
     "@types/node": "^20.11.19",
     "@types/react": "^18.2.57",
     "@types/react-dom": "^18.2.19",
+    "@types/turndown": "^5.0.5",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
     "typescript": "^5.3.3"
