@@ -1,0 +1,36 @@
+---
+title: "Wykorzystanie Paneli Bocznych dla Odniesień Akademickich"
+date: "2023-05-09"
+lang: "pl"
+published: true
+---
+
+# Wykorzystanie Paneli Bocznych dla Odniesień Akademickich
+
+Ten artykuł pokazuje, jak zaimplementować system paneli bocznych dla eleganckich odniesień, notatek i definicji, podobnych do tych w pracach akademickich i na stronie Gwerna.
+
+## Wprowadzenie
+
+Prace akademickie często wykorzystują notatki marginesowe lub przypisy, aby dostarczyć dodatkowy kontekst bez przerywania głównego toku tekstu. Ten artykuł pokazuje, jak zaimplementować podobną funkcję w nowoczesnej aplikacji internetowej.
+
+## Jak to działa
+
+System paneli bocznych wykorzystuje <Term id="komponent-terminu" definition="Komponent React, który wyświetla termin z definicją w panelu bocznym.">komponenty Term</Term> do definiowania specjalistycznego słownictwa. Kiedy czytelnik kliknie na termin, jego definicja pojawia się w panelu bocznym.
+
+## Zalety paneli bocznych
+
+Panele boczne oferują kilka zalet w porównaniu do tradycyjnych przypisów:
+
+1. <Term id="niezakłócona-lektura" definition="Czytelnik może przeglądać definicje bez utraty miejsca w głównym tekście.">Niezakłócona lektura</Term>: Czytelnik nie musi przewijać do dołu strony.
+
+2. <Term id="zachowanie-kontekstu" definition="Definicja pojawia się obok odpowiedniego tekstu, zachowując kontekst czytelnika.">Zachowanie kontekstu</Term>: Definicje pojawiają się obok odpowiedniego tekstu.
+
+3. <Term id="interaktywne" definition="Czytelnicy mogą wybierać, które terminy chcą zgłębić, w oparciu o swoją wiedzę i zainteresowania.">Interaktywna eksploracja</Term>: Czytelnicy mogą wybierać, które terminy chcą zbadać.
+
+## Szczegóły implementacji
+
+Implementacja wykorzystuje komponenty React z obliczeniami pozycji, aby wyrównać definicje z odpowiadającymi im terminami. System obsługuje nakładające się definicje, przesuwając je w dół w kontenerze.
+
+## Podsumowanie
+
+Panele boczne poprawiają doświadczenie czytania, umożliwiając czytelnikom dostęp do dodatkowych informacji bez zakłócania ich przepływu. To podejście jest szczególnie wartościowe dla treści technicznych lub akademickich ze specjalistyczną terminologią. 

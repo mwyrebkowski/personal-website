@@ -1,0 +1,49 @@
+---
+title: "Using Side Panels for Academic References"
+date: "2023-05-09"
+lang: "en"
+published: true
+definitions:
+  term-component:
+    term: "Term components"
+    definition: "A React component that displays a term with a definition in the side panel."
+  non-disruptive:
+    term: "Non-disruptive reading"
+    definition: "The reader can view definitions without losing their place in the main text."
+  context-preservation:
+    term: "Context preservation"
+    definition: "The definition appears alongside the relevant text, maintaining the reader's context."
+  interactive:
+    term: "Interactive exploration"
+    definition: "Readers can choose which terms to explore based on their knowledge and interests."
+---
+
+# Using Side Panels for Academic References
+
+This article demonstrates how to implement a side panel system for elegant references, notes, and definitions, similar to academic papers and Gwern's website.
+
+## Introduction
+
+Academic papers often use margin notes or footnotes to provide additional context without interrupting the main text flow. This article shows how to implement a similar feature in a modern web application.
+
+## How It Works
+
+The side panel system uses <span data-def-id="term-component">Term components</span> to define specialized vocabulary. When a reader clicks on a term, its definition appears in the side panel.
+
+## Benefits of Side Panels
+
+Side panels offer several advantages over traditional footnotes:
+
+1. <span data-def-id="non-disruptive">Non-disruptive reading</span>: The reader doesn't need to scroll to the bottom of the page.
+
+2. <span data-def-id="context-preservation">Context preservation</span>: Definitions appear next to the relevant text.
+
+3. <span data-def-id="interactive">Interactive exploration</span>: Readers can choose which terms to investigate.
+
+## Implementation Details
+
+The implementation uses React components with position calculations to align definitions with their corresponding terms. The system handles overlapping definitions by pushing them down in the container.
+
+## Conclusion
+
+Side panels enhance the reading experience by allowing readers to access additional information without disrupting their flow. This approach is particularly valuable for technical or academic content with specialized terminology. 
